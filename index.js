@@ -87,11 +87,16 @@ async function getAssistantReply(prompt) {
 
   while (status !== 'completed' && retries > 0) {
     await new Promise(r => setTimeout(r, 2000));
-    const runCheck = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
-      headers: openaiHeaders()
-    }).then(r => r.json());
+   const runCheck = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+  headers: openaiHeaders()
+});
 
-    status = runCheck.status;
+const runCheckJson = await runCheck.json();
+
+console.log('📦 Ответ runCheck:', JSON.stringify(runCheckJson, null, 2));
+
+status = runCheckJson.status;
+
     console.log(`⏳ Статус выполнения: ${status}`);
     if (['failed', 'cancelled', 'expired'].includes(status)) {
       throw new Error('Ассистент завершил run с ошибкой: ' + status);
