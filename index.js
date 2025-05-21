@@ -63,12 +63,17 @@ async function getAssistantReply(prompt) {
     retries--;
   }
 
-  const msgRes = await fetch(`https://api.openai.com/v1/threads/${threadRes.id}/messages`, {
-    headers: headers()
-  }).then(r => r.json());
+const msgRes = await fetch(`https://api.openai.com/v1/threads/${threadRes.id}/messages`, {
+  headers: headers()
+}).then(r => r.json());
 
-  const reply = msgRes.data.find(m => m.role === 'assistant');
-  return reply?.content[0]?.text?.value || 'Ассистент не ответил.';
+if (!msgRes.data || !Array.isArray(msgRes.data)) {
+  throw new Error('OpenAI не вернул сообщений');
+}
+
+const replyMsg = msgRes.data.find(m => m.role === 'assistant');
+const reply = replyMsg?.content?.[0]?.text?.value || 'GPT не вернул текст.';
+
 }
 
 async function sendToMattermost(text) {
