@@ -8,57 +8,28 @@ app.use(express.json());
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 
-const MM_API_TOKEN = 'gnwoiuo19bddfdwjbis6fs6dfo';
-const MM_API_BASE = 'https://mmost.x620.net/api/v4';
+app.get('/', (_, res) => res.send('✅ GPT Proxy работает!'));
 
-// === Slash-команда Mattermost ===
+app.post('/gpt', async (req, res) => {
+  const { prompt } = req.body;
 
-app.post('/slash/assist', async (req, res) => {
-  const { text, user_name, channel_id } = req.body;
-
-  console.log(`📨 Команда от ${user_name}: ${text}`);
-
-  if (!text) {
-    res.send("❌ Пожалуйста, укажите вопрос после `/assist`");
-    return;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Missing prompt' });
   }
 
-  res.send("⏳ GPT-ассистент обрабатывает ваш запрос...");
-
   try {
-    const reply = await getAssistantReply(text);
-    const message = `💬 **${user_name} спросил:** ${text}\n\n🤖 **Ответ:** ${reply}`;
-    await postAsBot(channel_id, message);
+    const reply = await getAssistantReply(prompt);
+    res.status(200).json({ reply });
   } catch (err) {
-    console.error("🔥 Ошибка:", err);
-    await postAsBot(channel_id, `❌ Ошибка: ${err.message}`);
-  }
-});
-
-// === Ручной POST (например, через Postman) ===
-
-app.post('/support', async (req, res) => {
-  const { question } = req.body;
-
-  if (!question) return res.status(400).json({ error: 'Missing question' });
-
-  try {
-    const reply = await getAssistantReply(question);
-    const text = `💬 Запрос: ${question}\n\n🤖 Ответ: ${reply}`;
-    await postAsBot('izy7u9nhaid75pw1677coahtiw', text);
-    res.status(200).json({ result: 'Отправлено в Mattermost', reply });
-  } catch (err) {
+    console.error("❌ Ошибка в /gpt:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/', (_, res) => res.send('✅ GPT Support Assistant работает!'));
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Сервер работает на http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Сервер запущен на http://localhost:${PORT}`));
 
-// === GPT Assistant ===
-
+// === GPT Assistant API ===
 async function getAssistantReply(prompt) {
   console.log('🔧 Создание thread...');
   const thread = await fetch('https://api.openai.com/v1/threads', {
@@ -90,8 +61,6 @@ async function getAssistantReply(prompt) {
     });
 
     const runCheckJson = await runCheck.json();
-    console.log('📦 Ответ runCheck:', JSON.stringify(runCheckJson, null, 2));
-
     status = runCheckJson.status;
     console.log(`⏳ Статус выполнения: ${status}`);
     if (['failed', 'cancelled', 'expired'].includes(status)) {
@@ -111,32 +80,10 @@ async function getAssistantReply(prompt) {
   return reply;
 }
 
-// === Отправка сообщения в Mattermost ===
-
-async function postAsBot(channel_id, message) {
-  const response = await fetch(`${MM_API_BASE}/posts`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${MM_API_TOKEN}`
-    },
-    body: JSON.stringify({ channel_id, message })
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    console.error('❌ Ошибка отправки в Mattermost:', text);
-  } else {
-    console.log('📤 Сообщение отправлено в Mattermost');
-  }
-}
-
-// === Заголовки OpenAI с флагом Beta ===
-
 function openaiHeaders() {
   return {
     Authorization: `Bearer ${OPENAI_API_KEY}`,
     'Content-Type': 'application/json',
-    'OpenAI-Beta': 'assistants=v2'  // 🟢 Ключевой заголовок
+    'OpenAI-Beta': 'assistants=v2'
   };
 }
