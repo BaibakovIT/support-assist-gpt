@@ -2,18 +2,16 @@ import express from 'express';
 import fetch from 'node-fetch';
 
 const app = express();
-app.use(express.urlencoded({ extended: true })); // для Slash-команд
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// 🔐 Переменные среды (из Render)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 
-// 🔐 Данные Mattermost (необязательно выносить в .env — уже известны)
 const MM_API_TOKEN = 'gnwoiuo19bddfdwjbis6fs6dfo';
 const MM_API_BASE = 'https://mmost.x620.net/api/v4';
 
-// === 1. Slash-команда Mattermost ===
+// === Slash-команда Mattermost ===
 
 app.post('/slash/assist', async (req, res) => {
   const { text, user_name, channel_id } = req.body;
@@ -29,7 +27,6 @@ app.post('/slash/assist', async (req, res) => {
 
   try {
     const reply = await getAssistantReply(text);
-
     const message = `💬 **${user_name} спросил:** ${text}\n\n🤖 **Ответ:** ${reply}`;
     await postAsBot(channel_id, message);
   } catch (err) {
@@ -38,7 +35,7 @@ app.post('/slash/assist', async (req, res) => {
   }
 });
 
-// === 2. Тестовый POST-запрос (например из Postman)
+// === Ручной POST (например, через Postman) ===
 
 app.post('/support', async (req, res) => {
   const { question } = req.body;
@@ -60,7 +57,7 @@ app.get('/', (_, res) => res.send('✅ GPT Support Assistant работает!')
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Сервер работает на http://localhost:${PORT}`));
 
-// === OpenAI Assistant ===
+// === GPT Assistant ===
 
 async function getAssistantReply(prompt) {
   console.log('🔧 Создание thread...');
@@ -87,16 +84,15 @@ async function getAssistantReply(prompt) {
 
   while (status !== 'completed' && retries > 0) {
     await new Promise(r => setTimeout(r, 2000));
-   const runCheck = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
-  headers: openaiHeaders()
-});
 
-const runCheckJson = await runCheck.json();
+    const runCheck = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+      headers: openaiHeaders()
+    });
 
-console.log('📦 Ответ runCheck:', JSON.stringify(runCheckJson, null, 2));
+    const runCheckJson = await runCheck.json();
+    console.log('📦 Ответ runCheck:', JSON.stringify(runCheckJson, null, 2));
 
-status = runCheckJson.status;
-
+    status = runCheckJson.status;
     console.log(`⏳ Статус выполнения: ${status}`);
     if (['failed', 'cancelled', 'expired'].includes(status)) {
       throw new Error('Ассистент завершил run с ошибкой: ' + status);
@@ -115,7 +111,7 @@ status = runCheckJson.status;
   return reply;
 }
 
-// === Отправка в Mattermost от имени бота ===
+// === Отправка сообщения в Mattermost ===
 
 async function postAsBot(channel_id, message) {
   const response = await fetch(`${MM_API_BASE}/posts`, {
@@ -124,10 +120,7 @@ async function postAsBot(channel_id, message) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${MM_API_TOKEN}`
     },
-    body: JSON.stringify({
-      channel_id,
-      message
-    })
+    body: JSON.stringify({ channel_id, message })
   });
 
   if (!response.ok) {
@@ -138,11 +131,12 @@ async function postAsBot(channel_id, message) {
   }
 }
 
-// === Заголовки для OpenAI ===
+// === Заголовки OpenAI с флагом Beta ===
 
 function openaiHeaders() {
   return {
     Authorization: `Bearer ${OPENAI_API_KEY}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'OpenAI-Beta': 'assistants=v2'  // 🟢 Ключевой заголовок
   };
 }
